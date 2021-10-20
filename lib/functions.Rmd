@@ -1,0 +1,215 @@
+shinyServer(function(input, output) {
+  
+  output$Dog_left_map <- renderLeaflet({
+    #adjust for weekday/weekend effect
+    if (input$Genders =='Overall') {
+      leaflet_plt_df <- old_dogs %>% 
+        group_by(ZipCode) %>%
+        summarise(total_count = n()
+        ) %>% left_join(zip,by= c("ZipCode" = "Zip"))
+      
+    } else {
+      leaflet_plt_df <- old_dogs %>% 
+        filter(AnimalGender == as.character(input$Genders)) %>%
+        group_by(ZipCode) %>%
+        summarise(total_count = n()) %>% 
+        left_join(zip,by= c("ZipCode" = "Zip"))
+      
+    }
+    map_2019 <- leaflet_plt_df %>%
+      leaflet(options = leafletOptions(minZoom = 11, maxZoom = 13)) %>%
+      addTiles() %>%
+      addProviderTiles("CartoDB.Positron",
+                       options = providerTileOptions(noWrap = TRUE)) %>%
+      setView(-73.9834,40.7504,zoom = 12)
+    
+    map_2019 %>%
+      addHeatmap(
+        lng=~Longitude,
+        lat=~Latitude,
+        intensity=~total_count,
+        max=700,
+        radius=16,
+        blur=8)
+    
+  }) #left map plot
+  
+  output$Dog_right_map <- renderLeaflet({
+    
+    #adjust for weekday/weekend effect
+    if (input$Genders =='Overall') {
+      leaflet_plt_df <- new_dogs %>% 
+        group_by(ZipCode) %>%
+        summarise(total_count = n()
+        )%>% left_join(zip,by= c("ZipCode" = "Zip"))
+      
+    } else {
+      leaflet_plt_df <- new_dogs %>% 
+        filter(AnimalGender == as.character(input$Genders)) %>%
+        group_by(ZipCode) %>%
+        summarise(total_count = n())%>% 
+        left_join(zip,by= c("ZipCode" = "Zip"))
+    }
+    #initial the map to plot on
+    map_2020 <- leaflet_plt_df %>%
+      leaflet(options = leafletOptions(minZoom = 11, maxZoom = 13)) %>%
+      addTiles() %>%
+      addProviderTiles("CartoDB.Positron",
+                       options = providerTileOptions(noWrap = TRUE)) %>%
+      setView(-73.9834,40.7504,zoom = 12)
+    
+    map_2020 %>%
+      addHeatmap(
+        lng=~Longitude,
+        lat=~Latitude,
+        intensity=~total_count,
+        max=700,
+        radius=16,
+        blur=8)
+    
+    
+    
+  }) #right map plot
+  
+  output$Emergency<- renderLeaflet({
+    
+    #adjust for weekday/weekend effect
+    if (input$adjust_time =='Overall') {
+      leaflet_plt_df <- data1 %>% 
+        group_by(Zip) %>%
+        summarise(
+          total=sum(total_ed_visits),
+          total_pne = sum(ili_pne_visits),
+          total_pneadm = sum(ili_pne_admissions),
+          
+          adm_percentage=sum(ili_pne_admissions)/sum(ili_pne_visits)
+        ) %>% left_join(emergency_info,by='Zip')
+    } else {
+      leaflet_plt_df <- data1 %>% 
+        filter(days == input$adjust_time) %>%
+        group_by(Zip) %>%
+        summarise(
+          total=sum(total_ed_visits),
+          total_pne = sum(ili_pne_visits),
+          total_pneadm = sum(ili_pne_admissions),
+          
+          adm_percentage=sum(ili_pne_admissions)/sum(ili_pne_visits)
+        ) %>% left_join(emergency_info,by='Zip')
+    } 
+    
+    
+    map <- leaflet_plt_df %>%
+      leaflet(options = leafletOptions(minZoom = 11, maxZoom = 13)) %>%
+      addTiles() %>%
+      addProviderTiles("CartoDB.Positron",
+                       options = providerTileOptions(noWrap = TRUE)) %>%
+      setView(-73.9834,40.7504,zoom = 12)
+    
+    if (input$adjust_score == 'total visit') {
+      map %>%
+        
+        addHeatmap(
+          lng=~Longitude,
+          lat=~Latitude,
+          intensity=~total_pne,
+          max=4000,
+          radius=8,
+          blur=10)
+    }else if (input$adjust_score == 'admission') {
+      map %>%
+        
+        addHeatmap(
+          lng=~Longitude,
+          lat=~Latitude,
+          intensity=~total_pneadm,
+          max=4000,
+          radius=8,
+          blur=10)
+    } else if (input$adjust_score == 'total'){
+      map %>%
+        
+        addHeatmap(
+          lng=~Longitude,
+          lat=~Latitude,
+          intensity=~total,
+          max=50,
+          radius=8,
+          blur=10)
+      
+    }
+  })#left map plot
+})
+
+shinyUI(
+  navbarPage(strong("NYC Covid Research ",style="color: white;"), 
+             theme=shinytheme("cerulean"), # select your themes https://rstudio.github.io/shinythemes/
+             #------------------------------- tab panel - Maps ---------------------------------
+             tabPanel("Dog licenses",icon = icon("map-marker-alt"), #choose the icon for
+                      
+                      div(class = 'outer',
+                          # side by side plots
+                          fluidRow(splitLayout(cellWidths = c("50%", "50%"),
+                                               leafletOutput("Dog_left_map",width="100%",height=1200),
+                                               leafletOutput("Dog_right_map",width="100%",height=1200))),
+                          #control panel on the left
+                          absolutePanel(id = "control", class = "panel panel-default", 
+                                        fixed = TRUE, draggable = TRUE, top = 200, left = 50, 
+                                        right = "auto", bottom = "auto", width = 250, height = "auto",
+                                        tags$h4('Dog Licenses Registered '),
+                                        tags$br(),tags$h5('Sorts'), 
+                                        #prettyRadioButtons(inputId = "Genders",
+                                        #label = "Genders",
+                                        #choices = c("Female", "Male"),
+                                        #inline = TRUE, status = "danger",
+                                        #fill = TRUE),
+                                        awesomeRadio("Genders", label="Pick Desired Gender",
+                                                     choices =c("Overall", "F", "M"),
+                                                     selected = "Overall",status = "danger"),
+                                        style = "opacity: 0.80"
+                                        
+                          ), #Panel Control - Closing
+                      ) #Maps - Div closing
+             ), #tabPanel maps closing
+             tabPanel("Emergency department visits",
+                      icon = icon("map-marker-alt"), #choose the icon for
+                      div(class = 'outer',
+                          # side by side plots
+                          fluidRow(
+                            splitLayout(cellWidths = "100%", 
+                                        leafletOutput('Emergency',width="100%",height=1200))),
+                          #control panel on the left
+                          absolutePanel(id = "control", class = "panel panel-default", fixed = TRUE, draggable = TRUE,
+                                        top = 200, left = 50, right = "auto", bottom = "auto", width = 250, height = "auto",
+                                        tags$h4('Emergency Department Visits '), 
+                                        tags$br(),
+                                        tags$h5('Sorts'), 
+                                        prettyRadioButtons(
+                                          inputId = "adjust_score",
+                                          label = "Score List:", 
+                                          choices = c("total visit", 
+                                                      "admission", 
+                                                      "total"),
+                                          inline = TRUE, 
+                                          status = "danger",
+                                          fill = TRUE
+                                        ),
+                                        awesomeRadio("adjust_time", 
+                                                     label="Time",
+                                                     choices =c("Overall",
+                                                                "weekday", 
+                                                                "weekend"), 
+                                                     selected = "Overall",
+                                                     status = "warning"),
+                                        # selectInput('adjust_weather',
+                                        #             label = 'Adjust for Weather',
+                                        #             choices = c('Yes','No'), 
+                                        #             selected = 'Yes'
+                                        #             ),
+                                        style = "opacity: 0.80"
+                                        
+                          ) #Panel Control - Closing
+                      ) #Maps - Div closing
+             ) #tabPanel maps closing
+             
+  ) #navbarPage closing  
+) #Shiny UI closing   
